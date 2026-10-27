@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<title>SchijfSync</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root { --bg:#0e0f12; --panel:#17191e; --panel2:#1e2128; --line:#2a2e36; --text:#eceef2; --dim:#8b909a;
+  --accent:#4da3ff; --green:#35d07f; --amber:#ffb224; --red:#ff5a52; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 "Segoe UI", system-ui, sans-serif; }
+main { max-width:1000px; margin:0 auto; padding:22px 22px 60px; }
+h1 { margin:0; font-size:26px; letter-spacing:-0.5px; } h1 span { color:var(--accent); }
+.sub { color:var(--dim); margin:2px 0 18px; }
+h2 { font-size:12px; letter-spacing:1.5px; color:var(--dim); margin:28px 0 10px; font-weight:700; }
+.card { background:var(--panel); border-radius:14px; padding:16px 18px; margin-bottom:12px; }
+.pairhead { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+.path { font-family:Consolas, monospace; font-size:14px; background:var(--panel2); padding:6px 10px; border-radius:8px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.path small { color:var(--dim); font-family:"Segoe UI", sans-serif; }
+.arrow { font-size:22px; color:var(--accent); }
+.st { display:inline-flex; align-items:center; gap:8px; margin-top:12px; font-weight:600; }
+.dot { width:10px; height:10px; border-radius:50%; background:var(--dim); }
+.st.live .dot { background:var(--green); box-shadow:0 0 0 4px #35d07f33; }
+.st.busy .dot { background:var(--accent); animation: pulse 1s infinite; }
+.st.wait .dot { background:var(--amber); }
+.st.bad .dot { background:var(--red); }
+@keyframes pulse { 50% { opacity:0.3; } }
+.detail { color:var(--dim); font-size:13px; margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.nums { display:flex; gap:26px; margin-top:12px; flex-wrap:wrap; }
+.nums b { font-size:18px; } .nums div { color:var(--dim); font-size:12px; }
+.btns { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+button { background:var(--panel2); color:var(--text); border:1px solid var(--line); border-radius:10px; padding:8px 14px; font:inherit; cursor:pointer; }
+button:hover { border-color:var(--accent); }
+button.primary { background:var(--accent); color:#04182e; border:0; font-weight:700; padding:12px 22px; font-size:16px; }
+button.primary:disabled { opacity:0.4; cursor:default; }
+button.red { color:var(--red); }
+.confirm { background:#3a2a10; border:1px solid var(--amber); border-radius:10px; padding:12px; margin-top:12px; }
+.errs { margin-top:10px; font-size:12px; color:var(--amber); font-family:Consolas, monospace; }
+.form .row { display:flex; gap:10px; align-items:center; margin:8px 0; flex-wrap:wrap; }
+.form .lab { width:60px; color:var(--dim); }
+.form .chosen { flex:1; min-width:200px; font-family:Consolas, monospace; font-size:14px; background:var(--panel2); padding:9px 12px; border-radius:8px; color:var(--dim); }
+.form .chosen.set { color:var(--text); }
+.modes { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:12px 0; }
+.mode { border:2px solid var(--line); border-radius:12px; padding:12px; cursor:pointer; }
+.mode.on { border-color:var(--accent); background:#12243a; }
+.mode b { display:block; } .mode span { color:var(--dim); font-size:13px; }
+label.chk { display:flex; gap:10px; align-items:flex-start; cursor:pointer; margin:8px 0; }
+input[type=checkbox] { width:18px; height:18px; accent-color:var(--accent); margin-top:2px; }
+.log { background:var(--panel); border-radius:14px; padding:10px 14px; max-height:300px; overflow:auto; font-family:Consolas, monospace; font-size:12.5px; }
+.log div { padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.log .t { color:var(--dim); } .log .bad { color:var(--amber); }
+.empty { color:var(--dim); }
+.toast { position:fixed; top:16px; left:50%; transform:translateX(-50%); background:var(--panel2); border:1px solid var(--line); border-radius:12px; padding:12px 18px; display:none; z-index:9; max-width:90%; }
+@media (max-width:640px) { .modes { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Schijf<span>Sync</span></h1>
+  <div class="sub">Houdt mappen op twee schijven live gelijk. Je kunt dit venster sluiten: het synchroniseren gaat op de achtergrond door.</div>
+
+  <h2>KOPPELINGEN</h2>
+  <div id="pairs"></div>
+
+  <h2>NIEUWE KOPPELING</h2>
+  <div class="card form">
+    <div class="row"><span class="lab">Links</span><div class="chosen" id="leftPath">nog geen map gekozen</div><button data-pick="left">Kies map…</button></div>
+    <div class="row"><span class="lab">Rechts</span><div class="chosen" id="rightPath">nog geen map gekozen</div><button data-pick="right">Kies map…</button></div>
+    <div class="modes">
+      <div class="mode on" data-mode="two"><b>⇄ Beide kanten gelijk</b><span>Wijzig je links of rechts, de andere kant volgt. Voor twee werkschijven.</span></div>
+      <div class="mode" data-mode="one"><b>→ Alleen links naar rechts</b><span>Rechts is een backup van links. Bestanden die alleen rechts staan blijven met rust.</span></div>
+    </div>
+    <label class="chk"><input type="checkbox" id="deletes" checked><span>Verwijderen ook doorvoeren<br><small style="color:var(--dim)">Verwijderde bestanden gaan aan de andere kant naar de verborgen map ".SchijfSync-prullenbak" en blijven daar 30 dagen.</small></span></label>
+    <div style="margin-top:12px"><button class="primary" id="add" disabled>Koppeling maken</button></div>
+  </div>
+
+  <h2>INSTELLINGEN</h2>
+  <div class="card">
+    <label class="chk"><input type="checkbox" id="autostart"><span>Automatisch starten met Windows<br><small style="color:var(--dim)">Onzichtbaar op de achtergrond. Open dit scherm via de snelkoppeling SchijfSync.</small></span></label>
+    <div class="btns"><button class="red" id="quit">SchijfSync helemaal stoppen</button></div>
+  </div>
+
+  <h2>ACTIVITEIT</h2>
+  <div class="log" id="log"><div class="empty">Nog niets gebeurd.</div></div>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const api = async (path, body) => {
+  const r = await fetch(path, { method: 'POST', headers: { 'X-SchijfSync': '1', 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+  if (!r.ok) throw new Error((await r.text()).trim() || r.statusText);
+  return r.json();
+};
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function toast(t) { const el = $('toast'); el.textContent = t; el.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => el.style.display = 'none', 4000); }
+function ago(t) {
+  const d = new Date(t); if (d.getFullYear() < 2000) return 'nog niet';
+  const s = (Date.now() - d) / 1000;
+  if (s < 60) return 'zojuist'; if (s < 3600) return Math.floor(s / 60) + ' min geleden';
+  return d.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+}
+function cls(st) {
+  if (st === 'Live') return 'live';
+  if (st === 'Controleren' || st === 'Bijwerken' || st === 'Kopieert') return 'busy';
+  if (st === 'Fout' || st === 'Wacht op jou') return 'bad';
+  return 'wait';
+}
+
+// ---- new pair ----
+const chosen = { left: '', right: '' };
+let twoWay = true;
+document.querySelectorAll('[data-pick]').forEach((b) => b.onclick = async () => {
+  toast('Kies de map in het venster dat opent (soms staat het erachter).');
+  const r = await api('/api/pick');
+  if (!r.path) return;
+  chosen[b.dataset.pick] = r.path;
+  const el = $(b.dataset.pick + 'Path'); el.textContent = r.path; el.classList.add('set');
+  $('add').disabled = !(chosen.left && chosen.right);
+});
+document.querySelectorAll('.mode').forEach((m) => m.onclick = () => {
+  twoWay = m.dataset.mode === 'two';
+  document.querySelectorAll('.mode').forEach((x) => x.classList.toggle('on', x === m));
+});
+$('add').onclick = async () => {
+  try {
+    await api('/api/add', { left: chosen.left, right: chosen.right, twoWay, deletes: $('deletes').checked });
+    chosen.left = chosen.right = '';
+    for (const s of ['left', 'right']) { $(s + 'Path').textContent = 'nog geen map gekozen'; $(s + 'Path').classList.remove('set'); }
+    $('add').disabled = true;
+    toast('Koppeling gemaakt. Eerst wordt alles vergeleken, daarna is hij live.');
+    refresh();
+  } catch (e) { toast(e.message); }
+};
+
+// ---- settings ----
+$('autostart').onchange = async () => {
+  try { await api('/api/autostart', { on: $('autostart').checked }); toast($('autostart').checked ? 'Start voortaan met Windows.' : 'Start niet meer met Windows.'); }
+  catch (e) { toast(e.message); }
+};
+$('quit').onclick = async () => {
+  if (!confirm('SchijfSync stoppen? Er wordt dan niet meer gesynchroniseerd tot je hem weer start.')) return;
+  await api('/api/quit').catch(() => {});
+  document.body.innerHTML = '<main><h1>Schijf<span>Sync</span></h1><p class="sub">Gestopt. Je kunt dit venster sluiten.</p></main>';
+  stopped = true;
+};
+
+// ---- pairs ----
+async function act(id, action, ask) {
+  if (ask && !confirm(ask)) return;
+  try { await api('/api/pair', { id, action }); refresh(); } catch (e) { toast(e.message); }
+}
+window.act = act;
+
+function renderPairs(pairs) {
+  if (!pairs.length) { $('pairs').innerHTML = '<div class="card empty">Nog geen koppelingen. Maak er hieronder een.</div>'; return; }
+  $('pairs').innerHTML = pairs.map((p) => {
+    const L = p.leftNow || p.left.path, R = p.rightNow || p.right.path;
+    const lab = (s) => s.label ? ' <small>' + esc(s.label) + '</small>' : '';
+    return '<div class="card">' +
+      '<div class="pairhead"><div class="path" title="' + esc(L) + '">' + esc(L) + lab(p.left) + '</div>' +
+      '<div class="arrow">' + (p.twoWay ? '⇄' : '→') + '</div>' +
+      '<div class="path" title="' + esc(R) + '">' + esc(R) + lab(p.right) + '</div></div>' +
+      '<div class="st ' + cls(p.status) + '"><span class="dot"></span>' + esc(p.status === 'Live' ? 'Live: wijzigingen worden direct gesynchroniseerd' : p.status || 'Starten…') + '</div>' +
+      '<div class="detail">' + esc(p.detail) + '</div>' +
+      (p.confirm ? '<div class="confirm">⚠ ' + esc(p.confirm) +
+        '<div class="btns"><button onclick="act(\'' + p.id + '\',\'restore\')">Terugzetten (aanbevolen)</button>' +
+        '<button class="red" onclick="act(\'' + p.id + '\',\'confirm\',\'Weet je het zeker? Ze gaan naar de sync-prullenbak.\')">Ja, ook daar weghalen</button></div></div>' : '') +
+      '<div class="nums"><span><b>' + (p.files || 0).toLocaleString('nl-NL') + '</b><div>bestanden gelijk</div></span>' +
+      '<span><b>' + p.copied.toLocaleString('nl-NL') + '</b><div>gekopieerd</div></span>' +
+      '<span><b>' + p.deleted.toLocaleString('nl-NL') + '</b><div>naar prullenbak</div></span>' +
+      '<span><b>' + ago(p.lastFull) + '</b><div>laatste volledige controle</div></span>' +
+      '<span><b>' + (p.twoWay ? 'beide kanten' : 'backup') + '</b><div>' + (p.deletes ? 'verwijderen wordt doorgevoerd' : 'verwijderen niet doorvoeren') + '</div></span></div>' +
+      (p.errs && p.errs.length ? '<div class="errs">' + p.errs.slice(-4).map(esc).join('<br>') + '</div>' : '') +
+      '<div class="btns">' +
+        (p.paused ? '<button onclick="act(\'' + p.id + '\',\'resume\')">▶ Hervatten</button>' : '<button onclick="act(\'' + p.id + '\',\'pause\')">❚❚ Pauze</button>') +
+        '<button onclick="act(\'' + p.id + '\',\'rescan\')">Nu alles vergelijken</button>' +
+        '<button onclick="act(\'' + p.id + '\',\'open-left\')">Open links</button>' +
+        '<button onclick="act(\'' + p.id + '\',\'open-right\')">Open rechts</button>' +
+        '<button onclick="act(\'' + p.id + '\',\'bin-left\')">Prullenbak links</button>' +
+        '<button onclick="act(\'' + p.id + '\',\'bin-right\')">Prullenbak rechts</button>' +
+        '<button class="red" onclick="act(\'' + p.id + '\',\'remove\',\'Koppeling verwijderen? Je bestanden blijven gewoon staan.\')">Koppeling verwijderen</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+function renderLog(log) {
+  if (!log.length) return;
+  $('log').innerHTML = log.slice().reverse().map((x) =>
+    '<div' + (x.bad ? ' class="bad"' : '') + '><span class="t">' + new Date(x.t).toLocaleTimeString('nl-NL') + '</span>  ' + esc(x.text) + '</div>').join('');
+}
+
+let stopped = false, lastJSON = '';
+async function refresh() {
+  if (stopped) return;
+  try {
+    const s = await api('/api/status');
+    // Redraw only when something changed (and twice a minute for "minutes ago"), so clicks are never lost.
+    const j = JSON.stringify(s) + Math.floor(Date.now() / 30000);
+    if (j !== lastJSON) {
+      lastJSON = j;
+      renderPairs(s.pairs);
+      renderLog(s.log);
+      if (document.activeElement !== $('autostart')) $('autostart').checked = s.autostart;
+    }
+  } catch (e) {
+    $('pairs').innerHTML = '<div class="card" style="color:var(--amber)">SchijfSync draait niet. Start hem met de snelkoppeling.</div>';
+  }
+}
+setInterval(refresh, 1000);
+refresh();
+</script>
+</body>
+</html>
